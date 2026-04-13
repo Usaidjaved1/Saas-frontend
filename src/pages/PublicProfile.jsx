@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import "../public.css";
+
 
 function PublicProfile() {
   const { username } = useParams();
