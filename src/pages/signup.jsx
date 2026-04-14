@@ -11,7 +11,7 @@ export default function Signup() {
 
   const signup = async () => {
     try {
-      await axios.post("saas-backend-production-acf1.up.railway.app/api/auth/signup", {
+      await axios.post( "https://saas-backend-production-acf1.up.railway.app/api/auth/signup", {
         username,
         email,
         password,
