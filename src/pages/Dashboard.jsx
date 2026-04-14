@@ -3,7 +3,6 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
-// ✅ GLOBAL API BASE (PRODUCTION)
 const API = "https://saas-backend-production-acf1.up.railway.app";
 
 function Dashboard() {
@@ -16,53 +15,54 @@ function Dashboard() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [links, setLinks] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // 🔹 FETCH LINKS
+  // GET LINKS
   const fetchLinks = async () => {
+    if (!profileId) return;
+
+    setLoading(true);
     try {
       const res = await axios.get(`${API}/api/links/${profileId}`);
-      setLinks(res.data);
+      setLinks(res.data || []);
     } catch (err) {
-      console.log("Fetch links error:", err.message);
+      console.log(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (profileId) fetchLinks();
+    fetchLinks();
   }, [profileId]);
 
-  // 🔹 LOGOUT
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/");
-  };
-
-  // 🔹 ADD LINK
+  // ADD LINK (OPTIMISTIC UI)
   const addLink = async () => {
+    if (!title || !url) return;
+
+    const tempLink = {
+      _id: Date.now(),
+      title,
+      url,
+      isActive: true,
+      clicks: 0,
+    };
+
+    setLinks((prev) => [tempLink, ...prev]);
+    setTitle("");
+    setUrl("");
+
     try {
-      await axios.post(`${API}/api/links`, {
+      const res = await axios.post(`${API}/api/links`, {
         profileId,
         title,
         url,
       });
 
-      setTitle("");
-      setUrl("");
-      fetchLinks();
-    } catch (err) {
-      console.log(err.message);
-    }
-  };
-
-  // 🔹 TOGGLE LINK
-  const toggleLink = async (id) => {
-    try {
-      await axios.patch(`${API}/api/links/${id}/toggle`);
-
+      // replace temp id with real id
       setLinks((prev) =>
         prev.map((l) =>
-          l._id === id ? { ...l, isActive: !l.isActive } : l
+          l._id === tempLink._id ? res.data : l
         )
       );
     } catch (err) {
@@ -70,33 +70,58 @@ function Dashboard() {
     }
   };
 
-  // 🔹 DELETE LINK
-  const deleteLink = async (id) => {
+  // TOGGLE (FAST UI)
+  const toggleLink = async (id) => {
+    setLinks((prev) =>
+      prev.map((l) =>
+        l._id === id ? { ...l, isActive: !l.isActive } : l
+      )
+    );
+
     try {
-      await axios.delete(`${API}/api/links/${id}`);
-      fetchLinks();
+      await axios.patch(`${API}/api/links/${id}/toggle`);
     } catch (err) {
       console.log(err.message);
     }
   };
 
-  // 🔹 EDIT LINK
+  // DELETE (FAST UI)
+  const deleteLink = async (id) => {
+    setLinks((prev) => prev.filter((l) => l._id !== id));
+
+    try {
+      await axios.delete(`${API}/api/links/${id}`);
+    } catch (err) {
+      console.log(err.message);
+    }
+  };
+
+  // EDIT
   const editLink = async (id, oldTitle, oldUrl) => {
     const newTitle = prompt("Edit Title", oldTitle);
     const newUrl = prompt("Edit URL", oldUrl);
 
     if (!newTitle || !newUrl) return;
 
+    setLinks((prev) =>
+      prev.map((l) =>
+        l._id === id ? { ...l, title: newTitle, url: newUrl } : l
+      )
+    );
+
     try {
       await axios.put(`${API}/api/links/${id}`, {
         title: newTitle,
         url: newUrl,
       });
-
-      fetchLinks();
     } catch (err) {
       console.log(err.message);
     }
+  };
+
+  const logout = () => {
+    localStorage.clear();
+    navigate("/");
   };
 
   return (
@@ -109,14 +134,14 @@ function Dashboard() {
         <div className="flex gap-3">
           <button
             onClick={() => navigate(`/u/${username}`)}
-            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500"
+            className="px-4 py-2 bg-purple-600 rounded-xl"
           >
             Public Page
           </button>
 
           <button
             onClick={logout}
-            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500"
+            className="px-4 py-2 bg-red-600 rounded-xl"
           >
             Logout
           </button>
@@ -125,18 +150,16 @@ function Dashboard() {
 
       {/* ADD LINK */}
       <div className="bg-white/10 p-5 rounded-2xl mb-8">
-        <h2 className="mb-3 text-lg">➕ Add Link</h2>
-
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-3">
           <input
-            className="p-3 rounded-xl bg-black/40 border border-gray-600"
+            className="p-3 rounded-xl bg-black/40"
             placeholder="Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
 
           <input
-            className="p-3 rounded-xl bg-black/40 border border-gray-600"
+            className="p-3 rounded-xl bg-black/40"
             placeholder="URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -144,7 +167,7 @@ function Dashboard() {
 
           <button
             onClick={addLink}
-            className="px-5 py-3 rounded-xl bg-green-600 hover:bg-green-500"
+            className="px-5 py-3 bg-green-600 rounded-xl"
           >
             Add
           </button>
@@ -152,68 +175,62 @@ function Dashboard() {
       </div>
 
       {/* LINKS */}
-      <div className="grid gap-5">
-        {links.map((link, i) => (
-          <motion.div
-            key={link._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="bg-white/10 p-5 rounded-2xl border border-white/10"
-          >
-            <div className="flex justify-between">
-              <h3 className="text-lg font-semibold">{link.title}</h3>
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="grid gap-5">
+          {links.map((link, i) => (
+            <motion.div
+              key={link._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/10 p-5 rounded-2xl"
+            >
+              <div className="flex justify-between">
+                <h3 className="font-bold">{link.title}</h3>
 
-              <span
-                className={`px-3 py-1 rounded-full text-xs ${
-                  link.isActive ? "bg-green-500" : "bg-red-500"
-                }`}
-              >
-                {link.isActive ? "ACTIVE" : "INACTIVE"}
-              </span>
-            </div>
+                <span className={link.isActive ? "text-green-400" : "text-red-400"}>
+                  {link.isActive ? "ACTIVE" : "INACTIVE"}
+                </span>
+              </div>
 
-            <p className="text-gray-300 text-sm mt-2">{link.url}</p>
+              <p className="text-gray-300 mt-2">{link.url}</p>
 
-            <p className="text-xs text-gray-400 mt-1">
-              Clicks: {link.clicks}
-            </p>
+              <div className="flex gap-2 mt-4">
 
-            {/* ACTIONS */}
-            <div className="flex gap-2 mt-4 flex-wrap">
+                <button
+                  onClick={() => window.open(link.url)}
+                  className="px-3 py-1 bg-blue-600 rounded"
+                >
+                  Open
+                </button>
 
-              <button
-                onClick={() => window.open(link.url, "_blank")}
-                className="px-3 py-1 bg-blue-600 rounded-lg"
-              >
-                Open
-              </button>
+                <button
+                  onClick={() => editLink(link._id, link.title, link.url)}
+                  className="px-3 py-1 bg-yellow-600 rounded"
+                >
+                  Edit
+                </button>
 
-              <button
-                onClick={() => editLink(link._id, link.title, link.url)}
-                className="px-3 py-1 bg-yellow-600 rounded-lg"
-              >
-                Edit
-              </button>
+                <button
+                  onClick={() => toggleLink(link._id)}
+                  className="px-3 py-1 bg-purple-600 rounded"
+                >
+                  Toggle
+                </button>
 
-              <button
-                onClick={() => toggleLink(link._id)}
-                className="px-3 py-1 bg-purple-600 rounded-lg"
-              >
-                Toggle
-              </button>
+                <button
+                  onClick={() => deleteLink(link._id)}
+                  className="px-3 py-1 bg-red-600 rounded"
+                >
+                  Delete
+                </button>
 
-              <button
-                onClick={() => deleteLink(link._id)}
-                className="px-3 py-1 bg-red-600 rounded-lg"
-              >
-                Delete
-              </button>
-
-            </div>
-          </motion.div>
-        ))}
-      </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
