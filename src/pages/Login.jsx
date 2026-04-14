@@ -14,7 +14,7 @@ export default function Login() {
       setLoading(true);
 
       const res = await axios.post(
-        "http://localhost:5000/api/auth/login",
+        "http://saas-backend-production-acf1.up.railway.app/auth/login",
         { email, password }
       );
 
