@@ -3,69 +3,100 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
+// ✅ GLOBAL API BASE (PRODUCTION)
+const API = "https://saas-backend-production-acf1.up.railway.app";
+
 function Dashboard() {
   const navigate = useNavigate();
-const user = JSON.parse(localStorage.getItem("user"));
-const profileId = user?._id;
-const username = user?.username;
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const profileId = user?._id;
+  const username = user?.username;
 
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [links, setLinks] = useState([]);
 
+  // 🔹 FETCH LINKS
   const fetchLinks = async () => {
-    const res = await axios.get(`http://localhost:5000/api/links/${profileId}`);
-    setLinks(res.data);
+    try {
+      const res = await axios.get(`${API}/api/links/${profileId}`);
+      setLinks(res.data);
+    } catch (err) {
+      console.log("Fetch links error:", err.message);
+    }
   };
 
   useEffect(() => {
-    fetchLinks();
-  }, []);
+    if (profileId) fetchLinks();
+  }, [profileId]);
 
+  // 🔹 LOGOUT
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     navigate("/");
   };
 
+  // 🔹 ADD LINK
   const addLink = async () => {
-    await axios.post("http://localhost:5000/api/links", {
-      profileId,
-      title,
-      url,
-    });
+    try {
+      await axios.post(`${API}/api/links`, {
+        profileId,
+        title,
+        url,
+      });
 
-    setTitle("");
-    setUrl("");
-    fetchLinks();
+      setTitle("");
+      setUrl("");
+      fetchLinks();
+    } catch (err) {
+      console.log(err.message);
+    }
   };
 
+  // 🔹 TOGGLE LINK
   const toggleLink = async (id) => {
-    await axios.patch(`http://localhost:5000/api/links/${id}/toggle`);
-    setLinks((prev) =>
-      prev.map((l) =>
-        l._id === id ? { ...l, isActive: !l.isActive } : l
-      )
-    );
+    try {
+      await axios.patch(`${API}/api/links/${id}/toggle`);
+
+      setLinks((prev) =>
+        prev.map((l) =>
+          l._id === id ? { ...l, isActive: !l.isActive } : l
+        )
+      );
+    } catch (err) {
+      console.log(err.message);
+    }
   };
 
+  // 🔹 DELETE LINK
   const deleteLink = async (id) => {
-    await axios.delete(`http://localhost:5000/api/links/${id}`);
-    fetchLinks();
+    try {
+      await axios.delete(`${API}/api/links/${id}`);
+      fetchLinks();
+    } catch (err) {
+      console.log(err.message);
+    }
   };
 
-  // ✅ EDIT (RESTORED PROPERLY)
+  // 🔹 EDIT LINK
   const editLink = async (id, oldTitle, oldUrl) => {
     const newTitle = prompt("Edit Title", oldTitle);
     const newUrl = prompt("Edit URL", oldUrl);
 
     if (!newTitle || !newUrl) return;
 
-    await axios.put(`http://localhost:5000/api/links/${id}`, {
-      title: newTitle,
-      url: newUrl,
-    });
+    try {
+      await axios.put(`${API}/api/links/${id}`, {
+        title: newTitle,
+        url: newUrl,
+      });
 
-    fetchLinks();
+      fetchLinks();
+    } catch (err) {
+      console.log(err.message);
+    }
   };
 
   return (
@@ -158,7 +189,6 @@ const username = user?.username;
                 Open
               </button>
 
-              {/* 🔥 EDIT BUTTON (NOW BACK) */}
               <button
                 onClick={() => editLink(link._id, link.title, link.url)}
                 className="px-3 py-1 bg-yellow-600 rounded-lg"
